@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1c1722">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Где лиды, Тимофей?</title>
+<link rel="preload" href="assets/fonts/nunito-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game">
+  <canvas id="view"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="panel" id="leads"><i class="ic ic-coin"></i><span>ЛИДЫ <b id="score">0</b> / 20</span></div>
+    <div class="panel" id="anx">
+      <div class="lab">ТРЕВОЖНОСТЬ <b id="anxv">0</b>%</div>
+      <div class="bar"><i id="anxbar"></i></div>
+    </div>
+  </div>
+  <button id="mute" class="ui hidden" aria-label="Звук"><i class="ic ic-sound"></i></button>
+
+  <div id="hint" class="hidden"></div>
+  <div id="finger" class="hidden"><i class="ic ic-hand"></i></div>
+  <div id="caption"></div>
+
+  <div id="title" class="screen hidden">
+    <div class="head">
+      <h1>ГДЕ ЛИДЫ,<br>ТИМОФЕЙ?</h1>
+      <p class="sub">всё, короче, работает</p>
+    </div>
+    <button id="go" class="ui btn">ПОЕХАЛИ</button>
+  </div>
+
+  <div id="dlg" class="hidden">
+    <div class="name">АНДРЕЙ:</div>
+    <div class="text" id="dlgText"></div>
+    <div class="next">Дальше <i class="ic ic-next"></i></div>
+  </div>
+
+  <div id="card" class="hidden"><div class="big">С ДНЁМ РОЖДЕНИЯ, АЙГУЛЬ!</div><div class="next">Дальше <i class="ic ic-next"></i></div></div>
+
+  <div id="post" class="screen hidden">
+    <div class="end">THE END</div>
+    <div class="andrey hidden" id="postAndrey"><div class="bubble">Ну вот. Накреативил.</div><canvas id="postSprite"></canvas></div>
+    <div class="small hidden" id="postSmall">Айгуль никого не заставляла делать эту игру.</div>
+    <button id="again" class="ui btn hidden">ЕЩЁ РАЗ</button>
+  </div>
+
+  <div id="pause" class="screen hidden"><button id="resume" class="ui round" aria-label="Продолжить"><i class="ic ic-play"></i></button></div>
+  <div id="rotate" class="screen hidden"><div class="phone"></div></div>
+  <div id="loading" class="screen">Собираем хорошие лиды…</div>
+</div>
+<script src="js/art.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
