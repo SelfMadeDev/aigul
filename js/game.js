@@ -658,120 +658,194 @@ function update(dt) {
 const X = vx;
 const FONT = 'Nunito, "Segoe UI", Roboto, sans-serif';
 function buildProps() { /* scenery is a deterministic repeating strip; nothing to prebuild */ }
-const BOOTH = [
-  { wall: '#8f6f7c', fas: '#6b5060', scr: '#9fd4d8' },
-  { wall: '#6f7f98', fas: '#515d73', scr: '#f3d9a4' },
-  { wall: '#a08a78', fas: '#76645a', scr: '#a9d6cf' },
-  { wall: '#7d7196', fas: '#5c5373', scr: '#f0c9b8' },
-];
 const PARTY = ['#ff7aa2', '#ffcf4a', '#6fc8f0', '#8bd98b', '#c59bff'];
 
 function mix(a, b, k) { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`; }
-function tint(c) { return G.party ? mix(c, '#d9956b', G.party * 0.45) : c; }
+function tint(c, k = 0.4) { return G.party ? mix(c, '#ffb070', G.party * k) : c; }
 function poly(pts, fill) { X.beginPath(); X.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) X.lineTo(pts[i][0], pts[i][1]); X.closePath(); X.fillStyle = fill; X.fill(); }
+function quad(a, b, c, d, fill) { poly([[a.X, a.Y], [b.X, b.Y], [c.X, c.Y], [d.X, d.Y]], fill); }
 function glow(x, y, r, col, a) {
   const g = X.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, col.replace('A', a)); g.addColorStop(1, col.replace('A', 0));
   X.fillStyle = g; X.fillRect(x - r, y - r, r * 2, r * 2);
 }
 function img(s, x, y, w = s.lw, h = s.lh) { X.drawImage(s, x, y, w, h); }
-function ground(xl, z, hgt = 0) { return proj(xl, z, hgt); }
 
+// ---- hall: dark event ceiling with a truss grid and spotlights, bright booths and carpet below
+const TRUSS_H = 5.2, BOOTH_IN = 1.9, BOOTH_OUT = 3.6, BOOTH_H = 2.3, SEG = 7, BOOTH_LEN = 5.2;
 function drawHall(t) {
   const party = G.party;
   const g = X.createLinearGradient(0, 0, 0, YH);
-  g.addColorStop(0, party ? mix('#241d2e', '#5a2f3a', party) : '#241d2e');
-  g.addColorStop(1, party ? mix('#4a4057', '#b8705a', party) : '#4a4057');
+  g.addColorStop(0, mix('#171b36', '#3b1c30', party)); g.addColorStop(1, mix('#3b3f72', '#c0684c', party));
   X.fillStyle = g; X.fillRect(0, 0, LW, YH + 1);
-  // hanging lamps drifting towards the camera: soft light only, no clutter
-  const cH = 5.6, off = G.dist % 6;
-  for (let i = 7; i >= 0; i--) {
-    const z = i * 6 - off + 2; if (z < -1) continue;
-    const s = sOf(z), y = YH + (GH - cH * LANE) * s;
-    X.fillStyle = `rgba(20,14,26,${0.35 * Math.min(1, s * 2)})`; X.fillRect(CX - 3.2 * LANE * s, y - 0.4 * s, 6.4 * LANE * s, Math.max(0.4, 1.2 * s));
-    for (const k of [-1.2, 1.2]) {
-      const lx0 = CX + k * LANE * s;
-      glow(lx0, y + 2 * s, 14 * s + 2, party ? 'rgba(255,190,120,A)' : 'rgba(255,226,170,A)', 0.35);
-      X.fillStyle = party ? '#ffe2b0' : '#fff1cf'; X.beginPath(); X.arc(lx0, y + 2 * s, Math.max(0.5, 1.6 * s), 0, 7); X.fill();
+  // truss rails converging to the far end
+  X.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    const a = proj(1 + side * 2.4, -1.5, TRUSS_H), b = proj(1 + side * 2.4, ZFAR + 2, TRUSS_H);
+    X.strokeStyle = mix('#9aa0d0', '#ffd0a0', party); X.lineWidth = 1.4;
+    X.beginPath(); X.moveTo(a.X, a.Y); X.lineTo(b.X, b.Y); X.stroke();
+  }
+  // cross beams with lattice + hanging spotlights, drifting towards the camera
+  const off = G.dist % 5;
+  for (let i = 8; i >= 0; i--) {
+    const z = i * 5 - off + 1; if (z < -1.2) continue;
+    const s = sOf(z), l = proj(1 - 2.4, z, TRUSS_H), r = proj(1 + 2.4, z, TRUSS_H), h = 0.9 * LANE * s * 0.35;
+    X.strokeStyle = mix('#7d82b5', '#f0b890', party); X.lineWidth = Math.max(0.4, 1.3 * s);
+    X.beginPath(); X.moveTo(l.X, l.Y); X.lineTo(r.X, r.Y); X.moveTo(l.X, l.Y + h); X.lineTo(r.X, r.Y + h); X.stroke();
+    X.lineWidth = Math.max(0.3, 0.7 * s); X.beginPath();
+    for (let k = 0; k < 8; k++) { const u0 = k / 8, u1 = (k + 1) / 8; X.moveTo(l.X + (r.X - l.X) * u0, l.Y + (k % 2 ? h : 0)); X.lineTo(l.X + (r.X - l.X) * u1, l.Y + (k % 2 ? 0 : h)); }
+    X.stroke();
+    if (i % 2 === 0) for (const k of [-1.3, 1.3]) {
+      const p = proj(1 + k, z, TRUSS_H - 0.25), f = proj(1 + k * 1.1, z, 0);
+      X.globalCompositeOperation = 'lighter';
+      const cg = X.createLinearGradient(0, p.Y, 0, f.Y);
+      const lc = party ? '255,190,120' : '255,236,190';
+      cg.addColorStop(0, `rgba(${lc},0.16)`); cg.addColorStop(1, `rgba(${lc},0)`);
+      poly([[p.X - 1.5 * s, p.Y], [p.X + 1.5 * s, p.Y], [f.X + 20 * s, f.Y], [f.X - 20 * s, f.Y]], cg);
+      glow(p.X, p.Y, 9 * s + 2, `rgba(${lc},A)`, 0.6);
+      X.globalCompositeOperation = 'source-over';
+      X.fillStyle = '#2b2d45'; X.beginPath(); rr(X, p.X - 1.6 * s, p.Y - 1.6 * s, 3.2 * s, 2.4 * s, 0.6 * s); X.fill();
     }
   }
-  // far end of the hall
-  const sF = sOf(ZFAR + 2), fw = 3.1 * LANE * sF, fy0 = YH + (GH - 3.4 * LANE) * sF, fy1 = YH + GH * sF;
-  X.fillStyle = party ? mix('#5a4a66', '#c98b68', party) : '#5a4a66'; X.fillRect(CX - fw, fy0, fw * 2, fy1 - fy0);
-  glow(CX, fy1 - 2, 30, party ? 'rgba(255,200,140,A)' : 'rgba(255,220,180,A)', 0.25);
-  drawFloor(t);
-  drawBooths(-1); drawBooths(1);
-  // horizon haze
-  const hz = X.createLinearGradient(0, YH - 6, 0, YH + 34);
-  const hc = party ? '120,80,80' : '74,64,87';
-  hz.addColorStop(0, `rgba(${hc},0.95)`); hz.addColorStop(1, `rgba(${hc},0)`);
-  X.fillStyle = hz; X.fillRect(0, YH - 6, LW, 40);
+  drawFarEnd(party);
+  drawFloor();
 }
-
+function drawFarEnd(party) {
+  const z = ZFAR + 2, s = sOf(z);
+  const l = proj(1 - 3.8, z, 0), r = proj(1 + 3.8, z, 3.6);
+  X.fillStyle = mix('#2b3160', '#8a4a50', party); X.fillRect(l.X, r.Y, r.X - l.X, l.Y - r.Y);
+  // big glowing EXPO sign over a registration desk
+  glow(CX, r.Y + (l.Y - r.Y) * 0.35, 30, party ? 'rgba(255,180,120,A)' : 'rgba(120,220,255,A)', 0.35);
+  const ty = r.Y + (l.Y - r.Y) * 0.32;
+  if (party > 0.3) { const hs = 26 * s; img(ART.icons.heart, CX - hs / 2, ty - hs * 0.45, hs, hs * 0.9); }
+  else { X.fillStyle = '#bff3ff'; X.font = `900 ${Math.max(3, 30 * s)}px ${FONT}`; X.textAlign = 'center'; X.textBaseline = 'middle'; X.fillText('EXPO', CX, ty); X.textAlign = 'left'; }
+  const d = proj(1 - 1.4, z - 0.5, 0.9), e = proj(1 + 1.4, z - 0.5, 0);
+  X.fillStyle = '#2bb3a3'; X.fillRect(d.X, d.Y, e.X - d.X, e.Y - d.Y);
+  X.fillStyle = '#fff6ea'; X.fillRect(d.X, d.Y, e.X - d.X, Math.max(0.6, (e.Y - d.Y) * 0.25));
+}
 function drawFloor() {
   const party = G.party, yb = LH + 2, sB = (yb - YH) / GH;
-  // side floor
+  // light booth-floor around the aisle
   const sg = X.createLinearGradient(0, YH, 0, LH);
-  sg.addColorStop(0, tint('#4d4556')); sg.addColorStop(1, tint('#6c6272'));
+  sg.addColorStop(0, tint('#8f86a6')); sg.addColorStop(1, tint('#e9dfd6'));
   X.fillStyle = sg; X.fillRect(0, YH, LW, LH - YH);
-  // the track: lighter and cleaner than everything around it
-  const hw0 = 1.5 * LANE * 0.001, hwB = 1.5 * LANE * sB;
+  // carpet aisle
+  const hwB = 1.55 * LANE * sB;
   const tg = X.createLinearGradient(0, YH, 0, LH);
-  tg.addColorStop(0, tint('#5a5165')); tg.addColorStop(1, tint('#8a7f8f'));
-  poly([[CX - hw0, YH], [CX + hw0, YH], [CX + hwB, yb], [CX - hwB, yb]], tg);
-  // gentle moving bands for speed
+  tg.addColorStop(0, mix('#1f4a66', '#6e2c48', party)); tg.addColorStop(1, mix('#2f86a8', '#c65a6c', party));
+  poly([[CX, YH], [CX, YH], [CX + hwB, yb], [CX - hwB, yb]], tg);
+  // centre lane a touch lighter: the three lanes read at a glance
+  const c0 = proj(0.5, -2), c1 = proj(0.5, ZFAR + 3), c2 = proj(1.5, ZFAR + 3), c3 = proj(1.5, -2);
+  quad(c0, c1, c2, c3, 'rgba(255,255,255,0.06)');
+  // carpet seams moving with speed
   const zOff = G.dist % 3;
   for (let i = 0; i < 14; i++) {
     const z1 = i * 3 - zOff, z2 = z1 + 1.5; if (z2 < -2) continue;
-    const a = proj(-0.5, Math.max(z1, -1.9)), b = proj(-0.5, z2), c = proj(2.5, z2), d = proj(2.5, Math.max(z1, -1.9));
-    poly([[a.X, a.Y], [b.X, b.Y], [c.X, c.Y], [d.X, d.Y]], 'rgba(255,255,255,0.035)');
+    quad(proj(-0.55, Math.max(z1, -1.9)), proj(-0.55, z2), proj(2.55, z2), proj(2.55, Math.max(z1, -1.9)), 'rgba(255,255,255,0.035)');
   }
-  // lane dividers (dashed, moving)
+  // lane dividers
   const dOff = G.dist % 4;
-  for (const lx0 of [0.5, 1.5]) {
-    for (let i = 0; i < 11; i++) {
-      const z1 = i * 4 - dOff, z2 = z1 + 2; if (z2 < -2 || z1 > ZFAR + 4) continue;
-      const w = 0.035;
-      const a = proj(lx0 - w, Math.max(z1, -1.9)), b = proj(lx0 - w, z2), c = proj(lx0 + w, z2), d = proj(lx0 + w, Math.max(z1, -1.9));
-      poly([[a.X, a.Y], [b.X, b.Y], [c.X, c.Y], [d.X, d.Y]], 'rgba(255,248,235,0.5)');
+  for (const lx0 of [0.5, 1.5]) for (let i = 0; i < 11; i++) {
+    const z1 = i * 4 - dOff, z2 = z1 + 2.2; if (z2 < -2 || z1 > ZFAR + 4) continue;
+    const w = 0.045;
+    quad(proj(lx0 - w, Math.max(z1, -1.9)), proj(lx0 - w, z2), proj(lx0 + w, z2), proj(lx0 + w, Math.max(z1, -1.9)), 'rgba(255,248,230,0.75)');
+  }
+  // yellow tape edges
+  for (const sd of [-1, 1]) {
+    const w = 0.07, e = 1 + sd * 1.55;
+    quad(proj(e - w, -2), proj(e - w, ZFAR + 3), proj(e + w, ZFAR + 3), proj(e + w, -2), party ? '#ffd98a' : '#ffc93a');
+  }
+  // horizon haze
+  const hz = X.createLinearGradient(0, YH - 4, 0, YH + 30);
+  const hc = party ? '150,80,80' : '43,49,96';
+  hz.addColorStop(0, `rgba(${hc},0.9)`); hz.addColorStop(1, `rgba(${hc},0)`);
+  X.fillStyle = hz; X.fillRect(0, YH - 4, LW, 34);
+}
+
+// ---- booth blocks (2.5D): side face towards the aisle, top face, and a textured front face
+function drawBooth(side, z1, idx) {
+  const b = BRANDS[idx % BRANDS.length], face = ART.booths[idx % BRANDS.length];
+  const z2 = z1 + BOOTH_LEN, zs = Math.max(z1, -0.8);
+  if (z2 < -0.8) return;
+  const xin = 1 + side * BOOTH_IN, xout = 1 + side * BOOTH_OUT;
+  // side face: perspective-correct vertical slices of the booth's aisle-facing texture
+  const tex = ART.boothSides[idx % BRANDS.length], N = 6, tw = tex.width, th = tex.height;
+  const f0 = proj(xin, zs, 0), f1 = proj(xin, z2, 0), f2 = proj(xin, z2, BOOTH_H), f3 = proj(xin, zs, BOOTH_H);
+  X.save(); X.beginPath(); X.moveTo(f0.X, f0.Y); X.lineTo(f1.X, f1.Y); X.lineTo(f2.X, f2.Y); X.lineTo(f3.X, f3.Y); X.closePath(); X.clip();
+  X.fillStyle = tint(b.panel); X.fill();
+  for (let k = 0; k < N; k++) {
+    const za = z1 + BOOTH_LEN * k / N, zb = z1 + BOOTH_LEN * (k + 1) / N;
+    if (zb <= -0.8) continue;
+    const zA = Math.max(za, -0.8);
+    const pa = proj(xin, zA, 0), pb = proj(xin, zb, 0), ta = proj(xin, zA, BOOTH_H), tb = proj(xin, zb, BOOTH_H);
+    // texture U grows along the aisle so text reads left-to-right on screen on both sides
+    let ua = (zA - z1) / BOOTH_LEN * tw, ub = (zb - z1) / BOOTH_LEN * tw;
+    if (side > 0) { ua = tw - ua; ub = tw - ub; }
+    texTri(tex, [ua, 0], [ub, 0], [ub, th], [ta.X, ta.Y], [tb.X, tb.Y], [pb.X, pb.Y]);
+    texTri(tex, [ua, 0], [ub, th], [ua, th], [ta.X, ta.Y], [pb.X, pb.Y], [pa.X, pa.Y]);
+  }
+  X.restore();
+  if (G.party) { quad(proj(xin, zs, 0), proj(xin, z2, 0), proj(xin, z2, BOOTH_H), proj(xin, zs, BOOTH_H), `rgba(255,150,90,${0.22 * G.party})`); }
+  // outline the near vertical edge for a graphic, poster-like read
+  const e0 = proj(xin, zs, 0), e1 = proj(xin, zs, BOOTH_H);
+  // top face
+  quad(proj(xin, zs, BOOTH_H), proj(xin, z2, BOOTH_H), proj(xout, z2, BOOTH_H), proj(xout, zs, BOOTH_H), tint('#d9d0e6'));
+  if (z1 > -0.3) {
+    const a = proj(xin, z1, BOOTH_H), c = proj(xout, z1, 0);
+    const x0 = Math.min(a.X, c.X), w = Math.abs(c.X - a.X), h = c.Y - a.Y;
+    img(face, x0, a.Y, w, h);
+    if (G.party > 0.2) {
+      // the booth screen turns festive
+      const sx = x0 + w * 10 / 85, sy = a.Y + h * 24 / 115, sw = w * 65 / 85, sh = h * 36 / 115;
+      X.globalAlpha = Math.min(1, (G.party - 0.2) * 2);
+      const pg = X.createLinearGradient(0, sy, 0, sy + sh); pg.addColorStop(0, '#ff9f6b'); pg.addColorStop(1, '#e0557a');
+      X.fillStyle = pg; X.beginPath(); rr(X, sx, sy, sw, sh, 2 * w / 85); X.fill();
+      const hs = sh * 0.6; img(ART.icons.heart, sx + sw / 2 - hs * 0.55, sy + sh / 2 - hs * 0.5, hs * 1.1, hs);
+      // balloons on the fascia
+      for (let k = 0; k < 3; k++) {
+        const bx = x0 + w * (0.2 + k * 0.3), by = a.Y - h * (0.14 + (k % 2) * 0.06) + Math.sin(G.t * 2 + k + idx) * h * 0.015, br = w * 0.075;
+        X.strokeStyle = 'rgba(255,255,255,0.7)'; X.lineWidth = Math.max(0.3, w / 170); X.beginPath(); X.moveTo(bx, by + br); X.lineTo(bx + w * 0.05, a.Y); X.stroke();
+        X.fillStyle = PARTY[(k + idx) % 5]; X.beginPath(); X.ellipse(bx, by, br, br * 1.2, 0, 0, 7); X.fill();
+        X.fillStyle = 'rgba(255,255,255,0.6)'; X.beginPath(); X.ellipse(bx - br * 0.35, by - br * 0.4, br * 0.25, br * 0.35, -0.5, 0, 7); X.fill();
+      }
+      X.globalAlpha = 1;
     }
   }
-  // warm edge lines
-  X.strokeStyle = party ? 'rgba(255,214,140,0.95)' : 'rgba(255,190,110,0.85)'; X.lineWidth = 1.2;
-  for (const sd of [-1, 1]) { X.beginPath(); X.moveTo(CX, YH); X.lineTo(CX + sd * hwB, yb); X.stroke(); }
+  X.strokeStyle = 'rgba(30,20,40,0.55)'; X.lineWidth = 0.5; X.beginPath(); X.moveTo(e0.X, e0.Y); X.lineTo(e1.X, e1.Y); X.stroke();
 }
 
-function wallQuad(side, off, z1, z2, h1, h2, col) {
-  z1 = Math.max(z1, -0.6);
-  if (z2 <= z1) return;
-  const a = proj(1 + side * off, z1, h1), b = proj(1 + side * off, z2, h1), c = proj(1 + side * off, z2, h2), d = proj(1 + side * off, z1, h2);
-  poly([[a.X, a.Y], [b.X, b.Y], [c.X, c.Y], [d.X, d.Y]], col);
-}
-function drawBooths(side) {
-  const seg = 7, off = G.dist % seg;
-  for (let i = 6; i >= 0; i--) {
-    const z1 = i * seg - off, z2 = z1 + 6;
-    if (z2 < 0) continue;
-    const idx = Math.floor((G.dist + z1 + 0.001) / seg) + (side > 0 ? 2 : 0), b = BOOTH[((idx % 4) + 4) % 4];
-    wallQuad(side, 3.0, z1, z2, 0, 2.5, tint(b.wall));
-    wallQuad(side, 3.0, z1, z2, 2.1, 2.5, tint(b.fas));
-    if (idx % 2) wallQuad(side, 3.0, z1 + 1.6, z2 - 1.6, 1.0, 1.75, G.party ? PARTY[((idx % 5) + 5) % 5] : b.scr);
-    wallQuad(side, 2.6, z1 + 0.9, z2 - 0.9, 0, 0.7, tint('#e9e0d6'));
-    wallQuad(side, 3.0, z2, z2 + 1, 0, 2.7, tint('#3c3446'));
-  }
+// Draws the source triangle s0..s2 (texture px) onto the destination triangle d0..d2 with an exact affine map.
+function texTri(im, s0, s1, s2, d0, d1, d2) {
+  const den = (s1[0] - s0[0]) * (s2[1] - s0[1]) - (s2[0] - s0[0]) * (s1[1] - s0[1]);
+  if (Math.abs(den) < 1e-6) return;
+  const ax = ((d1[0] - d0[0]) * (s2[1] - s0[1]) - (d2[0] - d0[0]) * (s1[1] - s0[1])) / den;
+  const cx = ((d2[0] - d0[0]) * (s1[0] - s0[0]) - (d1[0] - d0[0]) * (s2[0] - s0[0])) / den;
+  const ay = ((d1[1] - d0[1]) * (s2[1] - s0[1]) - (d2[1] - d0[1]) * (s1[1] - s0[1])) / den;
+  const cy = ((d2[1] - d0[1]) * (s1[0] - s0[0]) - (d1[1] - d0[1]) * (s2[0] - s0[0])) / den;
+  const ex = d0[0] - ax * s0[0] - cx * s0[1], ey = d0[1] - ay * s0[0] - cy * s0[1];
+  // grow the clip triangle slightly around its centroid so neighbours overlap (no hairline seams)
+  const mx = (d0[0] + d1[0] + d2[0]) / 3, my = (d0[1] + d1[1] + d2[1]) / 3, g = 1.04;
+  X.save(); X.beginPath();
+  [d0, d1, d2].forEach((p, i) => { const px = mx + (p[0] - mx) * g, py = my + (p[1] - my) * g; i ? X.lineTo(px, py) : X.moveTo(px, py); });
+  X.closePath(); X.clip();
+  X.transform(ax, ay, cx, cy, ex, ey);
+  X.drawImage(im, 0, 0);
+  X.restore();
 }
 
-// billboard props (roll-ups, visitors) — returned for depth sorting; kept sparse on purpose
+// depth-sorted scenery: booth blocks, roll-ups and visitors in the gaps
 function sceneryItems() {
-  const seg = 7, off = G.dist % seg, out = [];
+  const off = G.dist % SEG, out = [];
   for (let i = 6; i >= 0; i--) {
-    const z1 = i * seg - off;
+    const z1 = i * SEG - off;
     for (const side of [-1, 1]) {
-      const idx = Math.floor((G.dist + z1 + 0.001) / seg) * 2 + (side > 0 ? 1 : 0), m = ((idx % 20) + 20) % 20;
-      if (m % 2 === 0) out.push({ z: z1 + 0.3, draw: () => billboard(ART.rollups[(m / 2) % 4], side * 1.95 + 1, z1 + 0.3, 0.95) });
+      const n = Math.floor((G.dist + z1 + 0.001) / SEG), idx = ((n * 2 + (side > 0 ? 3 : 0)) % 6 + 6) % 6, m = ((n * 2 + (side > 0 ? 1 : 0)) % 20 + 20) % 20;
+      out.push({ z: z1 + 0.01, draw: () => drawBooth(side, z1, idx) });
+      const gz = z1 + BOOTH_LEN + 0.5;
+      if (m % 2 === 0) out.push({ z: gz, draw: () => billboard(ART.rollups[(idx + 2) % 6], 1 + side * 2.0, gz, 0.95) });
       if (m % 3 !== 2) {
-        const st = m % 5, nz = z1 + 3 + (m % 2);
-        out.push({ z: nz, draw: () => { const n = ART.npc[st], p = G.party > 0.3, sp = p ? ((((G.t * 3) | 0) + st) % 2 ? n.cheer : n.fronthat) : n.back; billboard(sp, side * 2.2 + 1, nz, 0.66, p ? Math.abs(Math.sin(G.t * 6 + st)) * 0.08 : 0); } });
+        const st = m % 5, nz = gz + 0.9;
+        out.push({ z: nz, draw: () => { const q = ART.npc[st], p = G.party > 0.3, sp = p ? ((((G.t * 3) | 0) + st) % 2 ? q.cheer : q.fronthat) : q.back; billboard(sp, 1 + side * 2.55, nz, 0.7, p ? Math.abs(Math.sin(G.t * 6 + st)) * 0.08 : 0); } });
       }
     }
   }
@@ -781,7 +855,22 @@ function billboard(s, xl, z, hUnits, lift = 0) {
   if (z < -1.5 || z > ZFAR + 4) return;
   const p = proj(xl, z, lift), h = hUnits * LANE * p.s, w = s.lw * h / s.lh;
   if (h < 1.5) return;
+  X.fillStyle = 'rgba(25,15,35,0.25)'; X.beginPath(); X.ellipse(p.X, p.Y, w * 0.45, w * 0.12, 0, 0, 7); X.fill();
   img(s, p.X - w / 2, p.Y - h, w, h);
+}
+// hanging directional signs over the aisle
+function drawSigns() {
+  const off = G.dist % 16;
+  for (let i = 2; i >= 0; i--) {
+    const z = i * 16 - off + 6; if (z < 1 || z > ZFAR) continue;
+    const n = Math.floor((G.dist + z) / 16), sgn = ART.signs[((n % 4) + 4) % 4];
+    const top = proj(1, z, TRUSS_H), p = proj(1, z, 4.3), w = 2.3 * LANE * p.s, h = w * sgn.lh / sgn.lw;
+    X.globalAlpha = Math.min(1, (ZFAR - z) / 6);
+    X.strokeStyle = '#6d7098'; X.lineWidth = Math.max(0.3, 0.5 * p.s);
+    X.beginPath(); X.moveTo(p.X - w * 0.3, top.Y); X.lineTo(p.X - w * 0.3, p.Y - h); X.moveTo(p.X + w * 0.3, top.Y); X.lineTo(p.X + w * 0.3, p.Y - h); X.stroke();
+    img(sgn, p.X - w / 2, p.Y - h, w, h);
+    X.globalAlpha = 1;
+  }
 }
 
 function drawScreen(t) {
@@ -823,7 +912,7 @@ function drawPod(who) {
     img(it, hx - it.lw * 0.3, hy - it.lh * 0.6, it.lw * 0.6, it.lh * 0.6);
   }
   X.restore();
-  img(c, P.x - c.lw / 2, P.y - 17);
+  img(c, P.x - c.lw / 2, P.y - 19);
 }
 
 function drawObject(o) {
@@ -951,13 +1040,15 @@ function render() {
   X.imageSmoothingEnabled = true; X.imageSmoothingQuality = 'high';
   X.clearRect(-5, -5, LW + 10, LH + 10);
   drawHall(t);
+  drawSigns();
   drawScreen(t);
-  drawPod('tim'); drawPod('and');
   const items = sceneryItems();
-  if (G.state !== 'title') for (const o of G.objs) items.push({ z: o.air ? -100 : o.z, draw: () => drawObject(o) });
+  if (G.state !== 'title') for (const o of G.objs) if (!o.air) items.push({ z: o.z, draw: () => drawObject(o) });
   if (G.state !== 'dialogue' && G.state !== 'title') items.push({ z: 0, draw: drawAigul });
   items.sort((a, b) => b.z - a.z);
   for (const it of items) it.draw();
+  drawPod('tim'); drawPod('and');
+  if (G.state !== 'title') for (const o of G.objs) if (o.air) drawObject(o);
   if (G.party) drawParty(t);
   vignette(G.state === 'dialogue' ? 0.55 : 0.35);
   drawGarlands(t);
